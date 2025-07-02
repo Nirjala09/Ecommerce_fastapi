@@ -76,11 +76,16 @@ async def view_cart():
 
 @app.delete("/products/{product_id}")
 async def delete_product(product_id: int):
-    query = products.delete().where(products.c.id == product_id)
-    result = await database.execute(query)
+    delete_cart_query = cart.delete().where(cart.c.product_id == product_id)
+    await database.execute(delete_cart_query)
+    
+    
+    product_query = products.delete().where(products.c.id == product_id)
+    result = await database.execute(product_query)
     if result == 0:
         raise HTTPException(status_code=404, detail="Product not found")
-    return {"detail": "Product deleted successfully"}
+    return {"detail": "Product and related cart items deleted successfully"}
+
 
 
 @app.delete("/cart/{cart_item_id}")
