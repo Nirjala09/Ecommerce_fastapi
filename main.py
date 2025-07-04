@@ -50,6 +50,19 @@ async def update_product(product_id: int, product: Product):
 
 
 
+# @app.post("/users/", response_model=UserOut)
+# async def create_user(user: UserCreate):
+#     # Check if user already exists
+#     query = users.select().where(users.c.email == user.email)
+#     existing_user = await database.fetch_one(query)
+#     if existing_user:
+#         raise HTTPException(status_code=400, detail="Email already registered")
+
+#     # Hash the password
+#     hashed_password = pwd_context.hash(user.password)
+#     query = users.insert().values(email=user.email, hashed_password=hashed_password)
+#     user_id = await database.execute(query)
+#     return {"id": user_id, "email": user.email}
 @app.post("/users/", response_model=UserOut)
 async def create_user(user: UserCreate):
     # Check if user already exists
@@ -58,11 +71,18 @@ async def create_user(user: UserCreate):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Hash the password
+    
     hashed_password = pwd_context.hash(user.password)
-    query = users.insert().values(email=user.email, hashed_password=hashed_password)
+
+   
+    query = users.insert().values(
+        email=user.email,
+        hashed_password=hashed_password,
+        role=user.role
+    )
     user_id = await database.execute(query)
-    return {"id": user_id, "email": user.email}
+    return {"id": user_id, "email": user.email, "role": user.role}
+
 
 
 
@@ -103,3 +123,17 @@ async def delete_cart_item(cart_item_id: int):
     if result == 0:
         raise HTTPException(status_code=404, detail="Cart item not found")
     return {"detail": "Cart item removed successfully"}
+
+
+from fastapi.security import OAuth2PasswordRequestForm
+from auth import create_access_token
+
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    query = users.select().where(users.c.email == form_data.username)
+    user = await database.fetch_one(query)
+    if not user or not pwd_context.verify(form_data.password, user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+
+    access_token = create_access_token(data={"sub": str(user["id"])})
+    return {"access_token": access_token, "token_type": "bearer"}

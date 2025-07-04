@@ -45,11 +45,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
+# async def require_admin(current_user=Depends(get_current_user)):
+#     if not current_user["email"].endswith("@admin.com"):  
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Admin privileges required",
+#         )
+#     return current_user
 async def require_admin(current_user=Depends(get_current_user)):
-    if not current_user["email"].endswith("@admin.com"):  
+    if current_user["role"] != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required",
         )
     return current_user
+
 
