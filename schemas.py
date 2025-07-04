@@ -1,4 +1,6 @@
 from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
+from typing import Optional
 
 class Product(BaseModel):
     name: str
@@ -6,12 +8,14 @@ class Product(BaseModel):
     price: float
 
 class UserCreate(BaseModel):
-    email: EmailStr
+    email: str
     password: str
+    role: Optional[str] = "user" 
 
 class UserOut(BaseModel):
     id: int
-    email: EmailStr
+    email: str
+    role: str 
     
 class CartItemCreate(BaseModel):
     product_id: int

@@ -16,8 +16,10 @@ users = Table(
     metadata,
     Column("id", Integer, primary_key=True),
     Column("email", String(255), unique=True, index=True),
-    Column("hashed_password", String(1000))
+    Column("hashed_password", String(1000)),
+    Column("role", String(50), default="user")  
 )
+
 
 
 

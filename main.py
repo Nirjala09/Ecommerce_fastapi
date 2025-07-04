@@ -5,6 +5,9 @@ from schemas import Product, UserCreate, UserOut, CartItemCreate, CartItemOut
 from sqlalchemy import select
 from passlib.context import CryptContext
 from models import cart
+from fastapi import Depends
+from auth import get_current_user, require_admin
+
 
 app = FastAPI()
 metadata.create_all(engine)
@@ -21,7 +24,8 @@ async def shutdown():
 
 
 
-@app.post("/products/")
+
+@app.post("/products/", dependencies=[Depends(require_admin)])
 async def create_product(product: Product):
     query = products.insert().values(
         name=product.name, description=product.description, price=product.price
@@ -29,13 +33,20 @@ async def create_product(product: Product):
     last_record_id = await database.execute(query)
     return {**product.dict(), "id": last_record_id}
 
-@app.get("/products/{product_id}")
-async def read_product(product_id: int):
-    query = products.select().where(products.c.id == product_id)
-    product = await database.fetch_one(query)
-    if product is None:
+
+
+@app.put("/products/{product_id}", dependencies=[Depends(require_admin)])
+async def update_product(product_id: int, product: Product):
+    query = products.update().where(products.c.id == product_id).values(
+        name=product.name,
+        description=product.description,
+        price=product.price
+    )
+    result = await database.execute(query)
+    if result == 0:
         raise HTTPException(status_code=404, detail="Product not found")
-    return product
+    return {"detail": "Product updated successfully"}
+
 
 
 
@@ -72,19 +83,16 @@ async def view_cart():
     query = cart.select()
     return await database.fetch_all(query)
 
-
-
-@app.delete("/products/{product_id}")
+@app.delete("/products/{product_id}", dependencies=[Depends(require_admin)])
 async def delete_product(product_id: int):
     delete_cart_query = cart.delete().where(cart.c.product_id == product_id)
     await database.execute(delete_cart_query)
-    
-    
     product_query = products.delete().where(products.c.id == product_id)
     result = await database.execute(product_query)
     if result == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"detail": "Product and related cart items deleted successfully"}
+
 
 
 
