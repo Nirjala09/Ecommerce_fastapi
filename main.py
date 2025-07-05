@@ -7,7 +7,8 @@ from passlib.context import CryptContext
 from models import cart
 from fastapi import Depends
 from auth import get_current_user, require_admin
-
+from fastapi.security import OAuth2PasswordRequestForm
+from auth import create_access_token
 
 app = FastAPI()
 metadata.create_all(engine)
@@ -50,19 +51,7 @@ async def update_product(product_id: int, product: Product):
 
 
 
-# @app.post("/users/", response_model=UserOut)
-# async def create_user(user: UserCreate):
-#     # Check if user already exists
-#     query = users.select().where(users.c.email == user.email)
-#     existing_user = await database.fetch_one(query)
-#     if existing_user:
-#         raise HTTPException(status_code=400, detail="Email already registered")
 
-#     # Hash the password
-#     hashed_password = pwd_context.hash(user.password)
-#     query = users.insert().values(email=user.email, hashed_password=hashed_password)
-#     user_id = await database.execute(query)
-#     return {"id": user_id, "email": user.email}
 @app.post("/users/", response_model=UserOut)
 async def create_user(user: UserCreate):
     # Check if user already exists
@@ -87,16 +76,20 @@ async def create_user(user: UserCreate):
 
 
 @app.post("/cart/", response_model=CartItemOut)
-async def add_to_cart(item: CartItemCreate):
+async def add_to_cart(item: CartItemCreate, current_user=Depends(get_current_user)):
     product_query = products.select().where(products.c.id == item.product_id)
     product = await database.fetch_one(product_query)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # TO insert in the cart
-    query = cart.insert().values(product_id=item.product_id, quantity=item.quantity)
+    query = cart.insert().values(
+        product_id=item.product_id,
+        quantity=item.quantity,
+        user_id=current_user["id"] 
+    )
     cart_id = await database.execute(query)
     return {**item.dict(), "id": cart_id}
+
 
 @app.get("/cart/", response_model=list[CartItemOut])
 async def view_cart():
@@ -117,16 +110,25 @@ async def delete_product(product_id: int):
 
 
 @app.delete("/cart/{cart_item_id}")
-async def delete_cart_item(cart_item_id: int):
-    query = cart.delete().where(cart.c.id == cart_item_id)
-    result = await database.execute(query)
-    if result == 0:
+async def delete_cart_item(cart_item_id: int, current_user=Depends(get_current_user)):
+   
+    query = cart.select().where(cart.c.id == cart_item_id)
+    cart_item = await database.fetch_one(query)
+
+    if not cart_item:
         raise HTTPException(status_code=404, detail="Cart item not found")
+
+    if cart_item["user_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this cart item")
+
+    
+    delete_query = cart.delete().where(cart.c.id == cart_item_id)
+    await database.execute(delete_query)
     return {"detail": "Cart item removed successfully"}
 
 
-from fastapi.security import OAuth2PasswordRequestForm
-from auth import create_access_token
+
+
 
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):

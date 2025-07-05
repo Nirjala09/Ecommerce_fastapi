@@ -21,13 +21,12 @@ users = Table(
 )
 
 
-
-
-
 cart = Table(
     "cart",
     metadata,
     Column("id", Integer, primary_key=True),
     Column("product_id", Integer, ForeignKey("products.id")),
-    Column("quantity", Integer)
+    Column("quantity", Integer),
+    Column("user_id", Integer, ForeignKey("users.id"))
 )
+
