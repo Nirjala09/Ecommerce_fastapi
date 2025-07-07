@@ -54,7 +54,7 @@ async def update_product(product_id: int, product: Product):
 
 @app.post("/users/", response_model=UserOut)
 async def create_user(user: UserCreate):
-    # Check if user already exists
+    
     query = users.select().where(users.c.email == user.email)
     existing_user = await database.fetch_one(query)
     if existing_user:
