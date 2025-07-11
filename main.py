@@ -9,8 +9,22 @@ from fastapi import Depends
 from auth import get_current_user, require_admin
 from fastapi.security import OAuth2PasswordRequestForm
 from auth import create_access_token
+from fastapi.openapi.utils import get_openapi
 
-app = FastAPI()
+app = FastAPI(
+    title="🛍️ E-Commerce API",
+    description="A FastAPI backend for e-commerce with JWT authentication, admin-only routes, and cart management.",
+    version="1.0.0",
+    contact={
+        "name": "Nirjala Karki",
+        "email": "nirjalakarki09@example.com",
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT",
+    }
+)
+
 metadata.create_all(engine)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -26,7 +40,7 @@ async def shutdown():
 
 
 
-@app.post("/products/", dependencies=[Depends(require_admin)])
+@app.put("/products/{product_id}", dependencies=[Depends(require_admin)], tags=["Products"])
 async def create_product(product: Product):
     query = products.insert().values(
         name=product.name, description=product.description, price=product.price
@@ -36,7 +50,7 @@ async def create_product(product: Product):
 
 
 
-@app.put("/products/{product_id}", dependencies=[Depends(require_admin)])
+@app.put("/products/{product_id}", dependencies=[Depends(require_admin)], tags=["Products"])
 async def update_product(product_id: int, product: Product):
     query = products.update().where(products.c.id == product_id).values(
         name=product.name,
@@ -52,7 +66,7 @@ async def update_product(product_id: int, product: Product):
 
 
 
-@app.post("/users/", response_model=UserOut)
+@app.post("/users/", response_model=UserOut, tags=["Users"])
 async def create_user(user: UserCreate):
     
     query = users.select().where(users.c.email == user.email)
@@ -75,7 +89,7 @@ async def create_user(user: UserCreate):
 
 
 
-@app.post("/cart/", response_model=CartItemOut)
+@app.post("/cart/", response_model=CartItemOut, tags=["Cart"])
 async def add_to_cart(item: CartItemCreate, current_user=Depends(get_current_user)):
     product_query = products.select().where(products.c.id == item.product_id)
     product = await database.fetch_one(product_query)
@@ -91,12 +105,12 @@ async def add_to_cart(item: CartItemCreate, current_user=Depends(get_current_use
     return {**item.dict(), "id": cart_id}
 
 
-@app.get("/cart/", response_model=list[CartItemOut])
+@app.get("/cart/", response_model=list[CartItemOut], tags=["Cart"])
 async def view_cart():
     query = cart.select()
     return await database.fetch_all(query)
 
-@app.delete("/products/{product_id}", dependencies=[Depends(require_admin)])
+@app.delete("/products/{product_id}", dependencies=[Depends(require_admin)], tags=["Products"])
 async def delete_product(product_id: int):
     delete_cart_query = cart.delete().where(cart.c.product_id == product_id)
     await database.execute(delete_cart_query)
@@ -109,7 +123,7 @@ async def delete_product(product_id: int):
 
 
 
-@app.delete("/cart/{cart_item_id}")
+@app.delete("/cart/{cart_item_id}", tags=["Cart"])
 async def delete_cart_item(cart_item_id: int, current_user=Depends(get_current_user)):
    
     query = cart.select().where(cart.c.id == cart_item_id)
@@ -130,7 +144,7 @@ async def delete_cart_item(cart_item_id: int, current_user=Depends(get_current_u
 
 
 
-@app.post("/token")
+@app.post("/token", tags=["Auth"])
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     query = users.select().where(users.c.email == form_data.username)
     user = await database.fetch_one(query)
@@ -139,3 +153,34 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
     access_token = create_access_token(data={"sub": str(user["id"])})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+
+    for path in openapi_schema["paths"].values():
+        for method in path.values():
+            method.setdefault("security", [{"BearerAuth": []}])
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
